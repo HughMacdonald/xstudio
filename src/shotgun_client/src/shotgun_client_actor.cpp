@@ -58,11 +58,12 @@ void ShotgunClientActor::init() {
         },
 
         [=](shotgun_authenticate_atom,
-            const AuthenticateShotgun &auth) -> result<std::pair<std::string, std::string>> {
+            const AuthenticateShotgun &auth,
+            const std::string &auth_token = "") -> result<std::pair<std::string, std::string>> {
             // spdlog::error("shotgun_authenticate_atom");
             auto rp = make_response_promise<std::pair<std::string, std::string>>();
             base_.set_credentials_method(auth);
-            acquire_token_primary(rp);
+            acquire_token_primary(rp, auth_token);
             return rp;
         },
 
@@ -458,7 +459,8 @@ void ShotgunClientActor::init() {
 }
 
 void ShotgunClientActor::acquire_token_primary(
-    caf::typed_response_promise<std::pair<std::string, std::string>> rp) {
+    caf::typed_response_promise<std::pair<std::string, std::string>> rp,
+    const std::string &auth_token) {
     if (not base_.refresh_token().empty()) {
         // spdlog::warn("not base_.refresh_token().empty()");
         if (request_refresh_queue_.empty()) {
@@ -489,7 +491,7 @@ void ShotgunClientActor::acquire_token_primary(
         }
     } else {
         if (not base_.failed_authentication()) {
-            acquire_token(rp);
+            acquire_token(rp, auth_token);
         } else {
             // spdlog::info("refresh from login");
             // request secret.
@@ -498,9 +500,9 @@ void ShotgunClientActor::acquire_token_primary(
                 base_.failed_authentication() ? "Authentication failed, try again." : "")
                 .request(actor_cast<caf::actor>(secret_source_), infinite)
                 .then(
-                    [=](const AuthenticateShotgun &auth) mutable {
+                    [=](const AuthenticateShotgun &auth, const std::string &new_auth_token) mutable {
                         base_.set_credentials_method(auth);
-                        acquire_token_primary(rp);
+                        acquire_token_primary(rp, new_auth_token);
                     },
                     [=](error &err) mutable {
                         spdlog::warn("{} {}", __PRETTY_FUNCTION__, to_string(err));
@@ -512,7 +514,8 @@ void ShotgunClientActor::acquire_token_primary(
 }
 
 void ShotgunClientActor::acquire_token(
-    caf::typed_response_promise<std::pair<std::string, std::string>> rp) {
+    caf::typed_response_promise<std::pair<std::string, std::string>> rp,
+    const std::string &auth_token) {
 
     if (request_acquire_queue_.empty()) {
         request_acquire_queue_.push(rp);
@@ -523,7 +526,7 @@ void ShotgunClientActor::acquire_token(
             base_.scheme_host_port(),
             "/api/v1/auth/access_token",
             base_.get_headers(),
-            base_.get_auth_request_params())
+            base_.get_auth_request_params(auth_token))
             .request(http_, infinite)
             .then(
                 [=](const std::string &body) mutable {

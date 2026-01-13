@@ -70,8 +70,10 @@ namespace shotgun_client {
         }
 
         void acquire_token_primary(
-            caf::typed_response_promise<std::pair<std::string, std::string>> rp);
-        void acquire_token(caf::typed_response_promise<std::pair<std::string, std::string>> rp);
+            caf::typed_response_promise<std::pair<std::string, std::string>> rp,
+            const std::string &auth_token = "");
+        void acquire_token(caf::typed_response_promise<std::pair<std::string, std::string>> rp,
+            const std::string &auth_token = "");
 
         void request_image(
             const std::string &entity,
